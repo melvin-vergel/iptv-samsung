@@ -45,7 +45,7 @@ playlist-server/  Your own channel-list endpoint server (Docker, Node)
 
 ## Playlist endpoint server (`playlist-server/`)
 
-A tiny zero-dependency Node container you can run on your local server (or
+A tiny (~9 MB) zero-dependency Go container you can run on your local server (or
 any Docker host on the LAN). You give it upstream playlist URLs via env
 vars; it fetches, parses and **merges them into one stable endpoint** that
 this TV app reads:

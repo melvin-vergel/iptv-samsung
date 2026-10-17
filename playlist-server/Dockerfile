@@ -1,15 +1,22 @@
-FROM node:22-alpine
+# Multi-stage: compile a static Go binary, ship it in a scratch image.
+FROM golang:1.24-alpine AS build
+RUN apk add --no-cache ca-certificates
+WORKDIR /src
+COPY go.mod ./
+COPY *.go ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /server .
 
-LABEL org.opencontainers.image.source=https://github.com/melvinvergel/samsung-iptv
-
-WORKDIR /app
-COPY server.js ./
+FROM scratch
+# TLS roots (so future https upstreams work) + CA certs for Alpine-built Go
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /server /server
 
 ENV PORT=8080
 EXPOSE 8080
+USER 65534:65534
+WORKDIR /data
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s \
-    CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+    CMD ["/server", "-healthcheck"]
 
-USER node
-CMD ["node", "server.js"]
+ENTRYPOINT ["/server"]

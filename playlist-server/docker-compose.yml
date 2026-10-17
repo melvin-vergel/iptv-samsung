@@ -37,7 +37,7 @@ services:
       - ./data:/data          # runtime-added playlists persist here
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "/server", "-healthcheck"]
       interval: 60s
       timeout: 10s
       start_period: 30s
