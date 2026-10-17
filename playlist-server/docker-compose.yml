@@ -1,25 +1,22 @@
 # ============================================================================
-# IPTV playlist server — self-contained deployment
+# IPTV playlist server — self-contained deployment (no source files needed)
 #
-# Option 1 (recommended, no source files needed on this server):
-#   On your Mac:  ./make-image.sh   -> creates iptv-playlist-server.tar
-#   scp both this file and the tar to the server, then:
-#     docker load -i iptv-playlist-server.tar
-#     docker compose up -d
+# On your docker server, place ONLY this file, then:
+#   docker compose pull && docker compose up -d
 #
-# Option 2 (registry): uncomment the image line below after publishing to
-#   GHCR, then `docker compose pull && docker compose up -d`.
+# (make-image.sh exists if you ever want to ship a tar instead of using Docker Hub.)
 #
 # Add more playlists: edit PLAYLISTS here (or drop a .env next to this file),
-#   or use the admin API at runtime (see ADMIN_TOKEN below).
+# or use the admin API at runtime (see ADMIN_TOKEN below).
 # ============================================================================
 
 name: iptv
 
 services:
   iptv-playlist:
-    image: iptv-playlist-server:latest
-    # image: ghcr.io/melvinvergel/iptv-playlist-server:latest   # registry option
+    # Pre-built image on Docker Hub — server needs NO source files, just:
+    #   docker compose pull && docker compose up -d
+    image: docker.io/melvinvergel/iptv-playlist-server:latest
     container_name: iptv-playlist
     ports:
       - "8080:8080"

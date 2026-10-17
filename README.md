@@ -89,18 +89,21 @@ only enabled when `ADMIN_TOKEN` is set.
 
 **Deploying without source files** (e.g. to a NAS/docker server):
 
+The image is published at `docker.io/melvinvergel/iptv-playlist-server:latest`
+(~9 MB, static Go binary in a scratch image). Copy **only**
+`playlist-server/docker-compose.yml` to your server:
+
 ```bash
-./make-image.sh        # builds the image and exports iptv-playlist-server.tar
-scp iptv-playlist-server.tar playlist-server/docker-compose.yml you@server:/opt/iptv/
+scp playlist-server/docker-compose.yml you@server:/opt/iptv/
 ssh you@server
-cd /opt/iptv && docker load -i iptv-playlist-server.tar && docker compose up -d
+cd /opt/iptv && docker compose pull && docker compose up -d
 ```
 
 The compose file has everything pre-configured (your Home TV playlist, EPG,
-admin token) as defaults, so no `.env` is needed on the server. To update
-the app later: rerun `./make-image.sh`, copy the new tar, `docker load`,
-`docker compose up -d`. (Alternatively publish to GHCR/Docker Hub and switch
-the `image:` line to pull from there.)
+admin token) as defaults, so no `.env` is needed on the server. To update the
+app later: bump the code, rebuild + `docker push` (or run `make-image.sh` for
+a tar-based ship instead), then `docker compose pull && docker compose up -d`
+on the server.
 
 Then point the TV app at `http://<server-ip>:8080/playlist.m3u`
 (or add it as a builtin in `js/endpoints.js`). The app always gets fresh
