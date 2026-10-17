@@ -399,7 +399,7 @@ function moveChannel(delta) {
 function boot() {
     cacheEls();
 
-    setProviders(Storage.load());
+    setProviders(Storage.seedBuiltins(ENDPOINTS.builtins));
 
     Player.init(els.video, {
         onReady: () => {},

@@ -3,6 +3,7 @@
  */
 const Storage = (() => {
     const KEY = 'iptv.providers.v1';
+    const SEEDED = 'iptv.seeded.v1';
 
     function load() {
         try {
@@ -32,5 +33,23 @@ const Storage = (() => {
         return providers;
     }
 
-    return { load, add, remove };
+    /**
+     * One-time seeding of endpoint providers baked into the app
+     * (see js/endpoints.js). Runs only on first launch, so users can
+     * still remove them afterwards.
+     */
+    function seedBuiltins(builtins) {
+        if (localStorage.getItem(SEEDED) || !builtins || !builtins.length) return load();
+        const providers = load();
+        for (const b of builtins) {
+            if (!providers.some(p => p.id === b.id)) {
+                providers.push({ id: b.id, name: b.name, url: b.url });
+            }
+        }
+        save(providers);
+        localStorage.setItem(SEEDED, '1');
+        return providers;
+    }
+
+    return { load, add, remove, seedBuiltins };
 })();

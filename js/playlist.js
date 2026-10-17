@@ -19,12 +19,32 @@ function parseExtInf(line) {
     };
 }
 
+/** Parse a JSON channel endpoint: array or {channels:[...]}. */
+function parseJsonChannels(json) {
+    const data = typeof json === 'string' ? JSON.parse(json) : json;
+    const list = Array.isArray(data) ? data : (data && Array.isArray(data.channels) ? data.channels : null);
+    if (!list) throw new Error('Unrecognized JSON (expected [{name,url},...] or {channels:[...]})');
+    return list
+        .filter(c => c && (c.url || c.streamUrl || c.link))
+        .map(c => ({
+            name: c.name || c.title || 'Channel',
+            url: c.url || c.streamUrl || c.link,
+            group: c.group || c.group_title || c.category || 'Uncategorized',
+            logo: c.logo || c.tvg_logo || '',
+        }));
+}
+
 /**
  * Parse an M3U text into a flat channel list.
  * Returns [{ name, url, group, logo }]
  */
 function parsePlaylist(text) {
-    const lines = text.split(/\r?\n/);
+    const trimmed = (text || '').trim();
+    // JSON endpoint?
+    if (trimmed.startsWith('[') || trimmed.startsWith('{"channels"') || trimmed.startsWith('{"data"')) {
+        return parseJsonChannels(trimmed);
+    }
+    const lines = trimmed.split(/\r?\n/);
     const channels = [];
     let meta = null;
 
