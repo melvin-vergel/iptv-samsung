@@ -40,7 +40,36 @@ icon.png          App icon (replace with your own 112x112)
 install.sh        One-command Docker installer (Option A below)
 docker/           Installer image: Dockerfile, entrypoint.sh, run.sh
 .env.default      Installer config template (cert + TV IP)
+playlist-server/  Your own channel-list endpoint server (Docker, Node)
 ```
+
+## Playlist endpoint server (`playlist-server/`)
+
+A tiny zero-dependency Node container you can run on your local server (or
+any Docker host on the LAN). You give it upstream playlist URLs via env
+vars; it fetches, parses and **merges them into one stable endpoint** that
+this TV app reads:
+
+| Route | Returns |
+|-------|---------|
+| `/playlist.m3u` | merged M3U (standard format, works with any IPTV client) |
+| `/channels.json` | `{"channels":[{name,url,group,logo,provider}]}` (this app understands it natively) |
+| `/` | provider status (channel counts, last errors) |
+| `/healthz` | healthcheck |
+
+```bash
+cd playlist-server
+cp .env.example .env      # set PLAYLISTS="Name|https://...m3u,Name2|https://..."
+docker compose up -d --build
+```
+
+Then point the TV app at `http://<server-ip>:8080/playlist.m3u`
+(or add it as a builtin in `js/endpoints.js`). The app always gets fresh
+channel lists from YOUR server — upstream changes need no TV redeploy, and
+sources that block TV user-agents or require CORS are handled by the server
+(`USER_AGENT` env lets you masquerade if needed). Failed upstreams keep
+serving their last good cache (`CACHE_TTL` seconds between refreshes,
+default 900).
 
 ## Building & installing on your TV
 

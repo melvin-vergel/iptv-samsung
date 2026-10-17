@@ -15,5 +15,8 @@ const ENDPOINTS = {
     builtins: [
         // { id: 'builtin-main', name: 'My Provider', url: 'https://example.com/playlist.m3u' },
         // { id: 'builtin-api',  name: 'From My API', url: 'https://api.example.com/channels.json' },
+
+        // Using playlist-server/ in this repo (see README):
+        // { id: 'builtin-local', name: 'Home Server', url: 'http://192.168.1.50:8080/playlist.m3u' },
     ],
 };
