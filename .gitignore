@@ -1,0 +1,4 @@
+.build/
+.wgt
+*.wgt
+.DS_Store

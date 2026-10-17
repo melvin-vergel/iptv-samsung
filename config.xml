@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://localhost/IPTV"
+        version="1.0.0"
+        viewmode="fullscreen"
+        build="1">
+
+    <name>IPTV</name>
+    <content src="index.html"/>
+    <icon src="icon.png" width="112" height="112"/>
+    <author href="http://localhost" email="you@example.com">Melvin</author>
+
+    <tizen:application id="IPTVa1b2c3.IPTV"
+                      package="IPTVa1b2c3"
+                      required_version="2.3"
+                      maximum_version="8.0"/>
+
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+
+    <tizen:app-control>
+        <tizen:src name="recruit" reload="true"/>
+        <tizen:target name="recruit" reload="true"/>
+    </tizen:app-control>
+
+    <tizen:profile name="tv"/>
+
+    <preference name="backgroundcolor" value="transparent"/>
+</widget>

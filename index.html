@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>IPTV</title>
+    <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+    <!-- Video surface driven by the native AVPlay API -->
+    <video id="video" autoplay></video>
+
+    <!-- Now-playing OSD (channel name, provider) -->
+    <div id="osd" class="hidden">
+        <div id="osd-channel"></div>
+        <div id="osd-provider"></div>
+    </div>
+
+    <!-- Channel / provider sidebar -->
+    <div id="sidebar" class="hidden">
+        <div id="providers-col">
+            <div class="col-title">Providers</div>
+            <ul id="providers-list"></ul>
+            <div id="btn-settings" class="provider-item settings-item">&#9881; Manage playlists</div>
+        </div>
+        <div id="channels-col">
+            <div class="col-title" id="channels-title">Channels</div>
+            <ul id="channels-list"></ul>
+        </div>
+    </div>
+
+    <!-- Settings modal: add/remove playlist providers -->
+    <div id="settings" class="modal hidden">
+        <div class="modal-box">
+            <h2>Manage playlists</h2>
+            <ul id="provider-manager"></ul>
+            <div class="add-row">
+                <input id="new-name" type="text" placeholder="Provider name" maxlength="40"/>
+                <input id="new-url" type="url" placeholder="M3U / M3U8 playlist URL"/>
+                <button id="btn-add">Add</button>
+            </div>
+            <div class="modal-hint">Focus a field to open the TV keyboard &middot; Back to close</div>
+        </div>
+    </div>
+
+    <!-- Toast messages -->
+    <div id="toast" class="hidden"></div>
+
+    <!-- Key legend -->
+    <div id="hints">
+        <span>&#9664;&#9654; Menu</span>
+        <span>&#9650;&#9660; Browse</span>
+        <span>&#918; Play</span>
+        <span>0&#8211;9 Channel number</span>
+        <span>Back Exit</span>
+    </div>
+
+    <script src="js/storage.js"></script>
+    <script src="js/playlist.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
