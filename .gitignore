@@ -1,4 +1,7 @@
 .build/
+build/
+cert/
 .wgt
 *.wgt
+.env
 .DS_Store

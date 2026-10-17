@@ -37,9 +37,56 @@ js/playlist.js    M3U fetch + parse + grouping
 js/player.js      AVPlay wrapper (prepare/play/stop, error handling)
 js/main.js        State machine + remote-key routing + rendering
 icon.png          App icon (replace with your own 112x112)
+install.sh        One-command Docker installer (Option A below)
+docker/           Installer image: Dockerfile, entrypoint.sh, run.sh
+.env.default      Installer config template (cert + TV IP)
 ```
 
 ## Building & installing on your TV
+
+Two options. **Option A (recommended)** mirrors the
+[jellyfin-tizen-installer](https://github.com/ldotlopez/jellyfin-tizen-installer)
+approach: one Docker command, no Tizen Studio GUI on your Mac, no Samsung
+developer account needed. Option B is the classic Tizen Studio route.
+
+### Option A — one-command Docker installer (`./install.sh`)
+
+Prerequisites: Docker Desktop (or Colima) running + your TV on the same network.
+
+1. **Enable Developer Mode on the TV**
+   On the TV: *Settings* → *General* → *Developer Mode* (or open the **Apps**
+   page and press `12345` on the remote). Set **IP Address** to **your Mac's
+   IP** (`ipconfig getifaddr en0`), toggle **On**, and let the TV restart.
+
+2. **Configure**
+   ```bash
+   cp .env.default .env
+   # edit .env: set CERT_PASSWORD and TIZEN_TV_IP (the TV's IP)
+   ```
+
+3. **Install**
+   ```bash
+   ./install.sh
+   ```
+   The first run downloads the Tizen Studio CLI (~1.8 GB) into `./build/`
+   and creates a signing certificate in `./cert/` — both are cached/reused,
+   so later runs take ~1 minute and can update the app *without uninstalling*.
+   When it finishes, the app is installed and launched on the TV.
+
+How it works (`docker/run.sh`): downloads the Tizen Studio web CLI →
+generates/reuses a self-signed author cert → `tizen build-web` +
+`tizen package` → `sdb connect <TV_IP>` → `tizen install` → launches the app.
+
+> ⚠️ Keep `./cert/` — reinstalling with a different certificate requires
+> uninstalling the old app first. And keep `.env` private (cert password);
+> it's gitignored.
+
+**Troubleshooting** (same as the Jellyfin installer):
+- *Could not connect to TV* → TV on, developer mode on, correct IPs, same LAN; `ping <TV_IP>`.
+- *Interrupted Tizen Studio download* → `rm build/tizen-studio.bin` and rerun.
+- *Install fails (certificate mismatch)* → use the original `./cert/*.p12` or uninstall the app from the TV first.
+
+### Option B — Tizen Studio (GUI)
 
 You need **Tizen Studio** (free, requires a Samsung developer account):
 
