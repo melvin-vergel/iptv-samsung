@@ -38,6 +38,7 @@ const TTL = parseInt(process.env.CACHE_TTL || '900', 10) * 1000;
 const USER_AGENT = process.env.USER_AGENT || 'IPTV-Tizen/1.0';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const DATA_FILE = process.env.DATA_FILE || '/data/sources.json';
+const EPG_URL = process.env.EPG_URL || '';
 
 /* ---------------- sources (env = built-in base, file = runtime-added) ------- */
 function parseSources(raw) {
@@ -206,7 +207,7 @@ function statusJson() {
     return {
         updatedAt: new Date().toISOString(),
         ttlSeconds: TTL / 1000,
-        endpoints: { playlist: '/playlist.m3u', channels: '/channels.json' },
+        endpoints: { playlist: '/playlist.m3u', channels: '/channels.json', epg: EPG_URL ? '/epg.xml' : null },
         providers: sources.map(s => ({
             id: s.id,
             name: s.name,
@@ -268,6 +269,25 @@ async function handleAdmin(req, res, urlPath) {
     return send(404, { error: 'not found' });
 }
 
+/* ---------------- EPG passthrough (optional) ---------------- */
+let epgCache = { body: null, at: 0 };
+async function getEpg() {
+    if (!EPG_URL) return null;
+    if (Date.now() - epgCache.at > TTL) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 30000);
+            const res = await fetch(EPG_URL, { signal: ctrl.signal, headers: { 'User-Agent': USER_AGENT } });
+            clearTimeout(timer);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            epgCache = { body: await res.text(), at: Date.now() };
+        } catch (e) {
+            console.error('EPG fetch failed:', e.message); // keep stale copy
+        }
+    }
+    return epgCache.body;
+}
+
 /* ---------------- HTTP server ---------------- */
 const server = http.createServer(async (req, res) => {
     const fullUrl = req.url || '/';
@@ -292,6 +312,10 @@ const server = http.createServer(async (req, res) => {
         send(200, 'application/x-mpegurl; charset=utf-8', renderM3U(allChannels()));
     } else if (urlPath === '/channels.json') {
         send(200, 'application/json; charset=utf-8', JSON.stringify({ channels: allChannels() }));
+    } else if (urlPath === '/epg.xml' || urlPath === '/epg') {
+        const epg = await getEpg();
+        if (epg === null) send(503, 'text/plain', 'EPG disabled: set EPG_URL\n');
+        else send(200, 'application/xml; charset=utf-8', epg);
     } else if (urlPath === '/healthz') {
         send(200, 'text/plain', 'ok');
     } else if (urlPath === '/') {

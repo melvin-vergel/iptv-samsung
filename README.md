@@ -54,6 +54,7 @@ this TV app reads:
 |-------|---------|
 | `/playlist.m3u` | merged M3U (standard format, works with any IPTV client) |
 | `/channels.json` | `{"channels":[{name,url,group,logo,provider}]}` (this app understands it natively) |
+| `/epg.xml` | XMLTV guide passthrough (set `EPG_URL`, cached like playlists) |
 | `/` | provider status (channel counts, last errors) |
 | `/healthz` | healthcheck |
 
@@ -85,6 +86,21 @@ curl "http://<server>:8080/playlist.m3u?refresh=1"
 Runtime-added sources persist in `./data/sources.json` (mounted at `/data`),
 so they survive restarts; your base list stays in `.env`. The admin API is
 only enabled when `ADMIN_TOKEN` is set.
+
+**Deploying without source files** (e.g. to a NAS/docker server):
+
+```bash
+./make-image.sh        # builds the image and exports iptv-playlist-server.tar
+scp iptv-playlist-server.tar playlist-server/docker-compose.yml you@server:/opt/iptv/
+ssh you@server
+cd /opt/iptv && docker load -i iptv-playlist-server.tar && docker compose up -d
+```
+
+The compose file has everything pre-configured (your Home TV playlist, EPG,
+admin token) as defaults, so no `.env` is needed on the server. To update
+the app later: rerun `./make-image.sh`, copy the new tar, `docker load`,
+`docker compose up -d`. (Alternatively publish to GHCR/Docker Hub and switch
+the `image:` line to pull from there.)
 
 Then point the TV app at `http://<server-ip>:8080/playlist.m3u`
 (or add it as a builtin in `js/endpoints.js`). The app always gets fresh

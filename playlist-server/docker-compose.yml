@@ -1,17 +1,43 @@
+# ============================================================================
+# IPTV playlist server — self-contained deployment
+#
+# Option 1 (recommended, no source files needed on this server):
+#   On your Mac:  ./make-image.sh   -> creates iptv-playlist-server.tar
+#   scp both this file and the tar to the server, then:
+#     docker load -i iptv-playlist-server.tar
+#     docker compose up -d
+#
+# Option 2 (registry): uncomment the image line below after publishing to
+#   GHCR, then `docker compose pull && docker compose up -d`.
+#
+# Add more playlists: edit PLAYLISTS here (or drop a .env next to this file),
+#   or use the admin API at runtime (see ADMIN_TOKEN below).
+# ============================================================================
+
+name: iptv
+
 services:
   iptv-playlist:
-    build: .
+    image: iptv-playlist-server:latest
+    # image: ghcr.io/melvinvergel/iptv-playlist-server:latest   # registry option
     container_name: iptv-playlist
     ports:
       - "8080:8080"
     environment:
-      # Base playlists (add more anytime, or use the admin API at runtime):
-      #   "Name|https://...m3u,Other|https://...m3u8"   or JSON '[{"name":"...","url":"..."}]'
-      PLAYLISTS: ${PLAYLISTS:-}
+      # Comma-separated "Name|URL" pairs — M3U or JSON, add as many as you like:
+      PLAYLISTS: ${PLAYLISTS:-Home TV|http://192.168.100.118:8409/iptv/channels.m3u}
+      # XMLTV guide passthrough (served at /epg.xml):
+      EPG_URL: ${EPG_URL:-http://192.168.100.118:8409/iptv/xmltv.xml}
+      # Seconds between upstream refreshes:
       CACHE_TTL: ${CACHE_TTL:-900}
+      # Enables runtime add/remove via /admin/sources (Bearer token):
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-***}
       USER_AGENT: ${USER_AGENT:-IPTV-Tizen/1.0}
-      # Enables POST/DELETE /admin/sources (leave empty to disable admin API):
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     volumes:
-      - ./data:/data
+      - ./data:/data          # runtime-added playlists persist here
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 10s
+      start_period: 30s

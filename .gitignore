@@ -4,5 +4,6 @@ cert/
 playlist-server/data/
 .wgt
 *.wgt
+*.tar
 .env
 .DS_Store
