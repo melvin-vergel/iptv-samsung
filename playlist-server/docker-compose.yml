@@ -5,11 +5,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Your upstream playlists. Formats (mix and match):
-      #   "Name|https://.../playlist.m3u,Other|https://.../x.m3u8"
-      #   "https://a.m3u,https://b.m3u8"                      (auto-named)
-      #   '[{"name":"Pro A","url":"https://..."}]'            (JSON)
+      # Base playlists (add more anytime, or use the admin API at runtime):
+      #   "Name|https://...m3u,Other|https://...m3u8"   or JSON '[{"name":"...","url":"..."}]'
       PLAYLISTS: ${PLAYLISTS:-}
       CACHE_TTL: ${CACHE_TTL:-900}
       USER_AGENT: ${USER_AGENT:-IPTV-Tizen/1.0}
+      # Enables POST/DELETE /admin/sources (leave empty to disable admin API):
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    volumes:
+      - ./data:/data
     restart: unless-stopped

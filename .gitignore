@@ -1,6 +1,7 @@
 .build/
 build/
 cert/
+playlist-server/data/
 .wgt
 *.wgt
 .env

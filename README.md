@@ -59,9 +59,32 @@ this TV app reads:
 
 ```bash
 cd playlist-server
-cp .env.example .env      # set PLAYLISTS="Name|https://...m3u,Name2|https://..."
+cp .env.example .env      # set PLAYLISTS="Name|https://...m3u,Name2|https://..." + ADMIN_TOKEN
 docker compose up -d --build
 ```
+
+**Add more lists any time — no restart, no redeploy:**
+
+```bash
+# add (fetches immediately and merges into the output)
+curl -X POST http://<server>:8080/admin/sources \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" \
+  -d '{"name":"New Provider","url":"https://.../playlist.m3u"}'
+
+# list everything (ids, builtin flag, channel counts)
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" http://<server>:8080/admin/sources
+
+# remove a runtime-added source (env-configured ones are protected)
+curl -X DELETE http://<server>:8080/admin/sources/<id> \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+
+# force fresh data from upstreams
+curl "http://<server>:8080/playlist.m3u?refresh=1"
+```
+
+Runtime-added sources persist in `./data/sources.json` (mounted at `/data`),
+so they survive restarts; your base list stays in `.env`. The admin API is
+only enabled when `ADMIN_TOKEN` is set.
 
 Then point the TV app at `http://<server-ip>:8080/playlist.m3u`
 (or add it as a builtin in `js/endpoints.js`). The app always gets fresh
