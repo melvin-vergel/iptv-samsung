@@ -44,6 +44,14 @@ const Player = (() => {
         });
     }
 
+    function unmute() {
+        if (!AV) return;
+        try {
+            if (typeof AV.setMuted === 'function') AV.setMuted(false);
+            else if (typeof AV.setVolume === 'function') AV.setVolume(100);
+        } catch (e) {}
+    }
+
     function prepareNew(url) {
         const token = ++switchToken;
         return teardown().then(() => {
@@ -56,7 +64,7 @@ const Player = (() => {
                             if (token !== switchToken) return;
                             try {
                                 AV.play();
-                                AV.setMuted(false);
+                                unmute();
                             } catch (e) {
                                 reject(e);
                                 return;
@@ -89,7 +97,7 @@ const Player = (() => {
                             if (token !== switchToken) return;
                             try {
                                 AV.play();
-                                AV.setMuted(false);
+                                unmute();
                             } catch (e) {
                                 reject(e);
                                 return;
@@ -166,7 +174,9 @@ const Player = (() => {
         },
 
         setMuted(m) {
-            if (AV) { try { AV.setMuted(m); } catch (e) {} }
+            if (AV && typeof AV.setMuted === 'function') {
+                try { AV.setMuted(m); } catch (e) {}
+            }
         },
     };
 })();
