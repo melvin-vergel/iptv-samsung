@@ -267,7 +267,7 @@ func (s *SourceStore) Channels() []ChannelOut {
 			if prefix && src.Name != "" {
 				g = src.Name + " / " + c.Group
 			}
-			out = append(out, ChannelOut{Channel: Channel{Name: c.Name, URL: c.URL, Group: g, Logo: c.Logo}, Provider: src.Name})
+			out = append(out, ChannelOut{Channel: Channel{Name: c.Name, URL: c.URL, Group: g, Logo: c.Logo, TvgID: c.TvgID}, Provider: src.Name})
 		}
 	}
 	return out

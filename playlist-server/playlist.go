@@ -9,10 +9,11 @@ import (
 
 // Channel is one playable entry.
 type Channel struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name  string `json:"name"`
+	URL   string `json:"url"`
 	Group string `json:"group"`
 	Logo  string `json:"logo"`
+	TvgID string `json:"tvg_id,omitempty"`
 }
 
 // ChannelOut adds the provider for /channels.json consumers.
@@ -28,7 +29,7 @@ var (
 )
 
 // parseExtInf extracts attributes and display name from one #EXTINF line.
-func parseExtInf(line string) (name, logo, group string) {
+func parseExtInf(line string) (name, logo, group, tvgId string) {
 	attrs := map[string]string{}
 	for _, m := range attrRe.FindAllStringSubmatch(line, -1) {
 		attrs[m[1]] = m[2]
@@ -39,7 +40,7 @@ func parseExtInf(line string) (name, logo, group string) {
 	if name == "" {
 		name = attrs["tvg-name"]
 	}
-	return name, attrs["tvg-logo"], orDefault(attrs["group-title"], "Uncategorized")
+	return name, attrs["tvg-logo"], orDefault(attrs["group-title"], "Uncategorized"), attrs["tvg-id"]
 }
 
 func orDefault(v, def string) string {
@@ -52,7 +53,7 @@ func orDefault(v, def string) string {
 // parseM3U converts playlist text into channels.
 func parseM3U(text string) []Channel {
 	var out []Channel
-	var meta *struct{ name, logo, group string }
+	var meta *struct{ name, logo, group, tvgId string }
 
 	for _, raw := range strings.Split(text, "\n") {
 		line := strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
@@ -61,8 +62,8 @@ func parseM3U(text string) []Channel {
 		}
 		switch {
 		case strings.HasPrefix(line, "#EXTINF"):
-			n, l, g := parseExtInf(line)
-			meta = &struct{ name, logo, group string }{n, l, g}
+			n, l, g, id := parseExtInf(line)
+			meta = &struct{ name, logo, group, tvgId string }{n, l, g, id}
 		case strings.HasPrefix(line, "#EXTGRP"):
 			if meta != nil {
 				meta.group = orDefault(strings.TrimSpace(line[7:]), meta.group)
@@ -81,6 +82,7 @@ func parseM3U(text string) []Channel {
 			if meta != nil {
 				ch.Group = meta.group
 				ch.Logo = meta.logo
+				ch.TvgID = meta.tvgId
 			} else {
 				ch.Group = "Uncategorized"
 			}
@@ -151,6 +153,7 @@ func parseJSONChannels(text string) ([]Channel, error) {
 			URL:   u,
 			Group: orDefault(pickStr(m, "group", "group_title", "group-title", "category"), "Uncategorized"),
 			Logo:  pickStr(m, "logo", "tvg_logo", "tvg-logo"),
+			TvgID: pickStr(m, "tvg_id", "tvgId", "tvg-id", "id"),
 		})
 	}
 	return out, nil
@@ -175,6 +178,11 @@ func renderM3U(channels []ChannelOut) string {
 		b.WriteString(`" group-title="`)
 		b.WriteString(escapeAttr(c.Group))
 		b.WriteString(`"`)
+		if c.TvgID != "" {
+			b.WriteString(` tvg-id="`)
+			b.WriteString(escapeAttr(c.TvgID))
+			b.WriteString(`"`)
+		}
 		if c.Logo != "" {
 			b.WriteString(` tvg-logo="`)
 			b.WriteString(escapeAttr(c.Logo))
