@@ -10,6 +10,8 @@ const Player = (() => {
     let currentUrl = null;
     let callbacks = { onReady: null, onError: null, onCompleted: null };
     let switchToken = 0;
+    const displayW = window.innerWidth || 1920;
+    const displayH = window.innerHeight || 1080;
 
     // The TV in this issue exposes webapis.avplay but lacks setDisplayElement,
     // so we fall back to the old setDisplayRect/open/prepareAsync path.
@@ -81,8 +83,7 @@ const Player = (() => {
             return new Promise((resolve, reject) => {
                 try {
                     AV.open(url);
-                    // Full-screen rectangle in the TV app coordinate space.
-                    AV.setDisplayRect(0, 0, 1920, 1080);
+                    AV.setDisplayRect(0, 0, displayW, displayH);
                     AV.prepareAsync(
                         () => {
                             if (token !== switchToken) return;
@@ -117,7 +118,7 @@ const Player = (() => {
                 return;
             }
             if (isOldApi) {
-                AV.setDisplayRect(0, 0, 1920, 1080);
+                AV.setDisplayRect(0, 0, displayW, displayH);
                 if (typeof AV.setListener === 'function') {
                     AV.setListener({
                         onerror: (error) => {
