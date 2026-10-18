@@ -118,7 +118,6 @@ const Player = (() => {
                 return;
             }
             if (isOldApi) {
-                AV.setDisplayRect(0, 0, displayW, displayH);
                 if (typeof AV.setListener === 'function') {
                     AV.setListener({
                         onerror: (error) => {
