@@ -3,7 +3,9 @@
 html, body {
     width: 100%; height: 100%;
     overflow: hidden;
-    background: #000;
+    /* Transparent: on TVs using the old AVPlay API (setDisplayRect) the native
+       video plane sits UNDER the web layer — an opaque body hides the picture. */
+    background: transparent;
     color: #eaeaea;
     font-family: "SamsungOne", "Tizen", "Helvetica Neue", Arial, sans-serif;
     font-size: 24px;
@@ -14,10 +16,24 @@ html, body {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: #000;
+    background: transparent;
 }
 
 .hidden { display: none !important; }
+
+/* ============ buffering spinner ============ */
+#spinner {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 64px; height: 64px;
+    margin: -32px 0 0 -32px;
+    border: 6px solid rgba(255, 255, 255, 0.15);
+    border-top-color: #e50914;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    z-index: 40;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ============ OSD (now playing) ============ */
 #osd {

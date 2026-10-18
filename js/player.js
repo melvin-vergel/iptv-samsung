@@ -130,7 +130,7 @@ const Player = (() => {
                     AV.setListener({
                         onerror: (error) => {
                             console.error('AVPlay error', error);
-                            if (callbacks.onError) callbacks.onError('Player error (' + error + ')');
+                            (callbacks.onRuntimeError || callbacks.onError || (() => {}))('Player error (' + error + ')');
                         },
                         onstreamcompleted: () => {
                             if (callbacks.onCompleted) callbacks.onCompleted();
@@ -141,7 +141,7 @@ const Player = (() => {
                 AV.setDisplayElement(videoEl);
                 AV.setOnPlayerErrorListener((error) => {
                     console.error('AVPlay error', error);
-                    if (callbacks.onError) callbacks.onError('Player error (' + error + ')');
+                    (callbacks.onRuntimeError || callbacks.onError || (() => {}))('Player error (' + error + ')');
                 });
                 AV.setOnCompletedListener(() => {
                     if (callbacks.onCompleted) callbacks.onCompleted();
