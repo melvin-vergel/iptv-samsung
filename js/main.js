@@ -10,7 +10,7 @@
 const KEYS = {
     UP: 38, DOWN: 40, LEFT: 37, RIGHT: 39,
     ENTER: 13,
-    BACK: [4, 10001, 4617],           // TV "return/back" variants
+    BACK: [4, 10001, 10009, 4617],           // TV "return/back" variants
     EXIT: [412],                      // power/exit
     MENU: [457],
     NUM: (c) => c >= 48 && c <= 57,   // 0-9
@@ -41,7 +41,7 @@ const els = {};
 function cacheEls() {
     ['video', 'osd', 'osd-channel', 'osd-provider', 'sidebar', 'providers-list',
      'channels-list', 'channels-title', 'btn-settings', 'settings',
-     'provider-manager', 'new-name', 'new-url', 'btn-add', 'toast'].forEach(id => els[id] = $(id));
+     'provider-manager', 'new-name', 'new-url', 'btn-add', 'toast', 'debug'].forEach(id => els[id] = $(id));
     const num = document.createElement('div');
     num.id = 'numbox';
     num.className = 'hidden';
@@ -397,80 +397,111 @@ function moveChannel(delta) {
 
 /* ---------------- boot ---------------- */
 function registerTvKeys() {
-    if (typeof tizen === 'undefined' || !tizen.tvinputdevice) return;
+    if (typeof tizen === 'undefined' || !tizen.tvinputdevice) return [];
+    // Samsung/Tizen uses these key names, NOT the DOM "Arrow*" names.
     const keys = [
-        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-        'Enter', 'Back',
+        'Up', 'Down', 'Left', 'Right',
+        'Enter', 'Return',
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
         'ChannelUp', 'ChannelDown'
     ];
+    const failed = [];
     keys.forEach(k => {
-        try { tizen.tvinputdevice.registerKey(k); } catch (e) {}
+        try { tizen.tvinputdevice.registerKey(k); }
+        catch (e) { failed.push(k); }
     });
+    return failed;
+}
+
+function debug(msg) {
+    if (!els.debug) return;
+    els.debug.classList.remove('hidden');
+    const line = document.createElement('div');
+    line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    els.debug.appendChild(line);
 }
 
 function boot() {
-    cacheEls();
-    registerTvKeys();
+    try {
+        cacheEls();
 
-    // Grab focus so the TV remote keys reach our keydown handler instead of
-    // the browser/OS default handlers.
-    document.body.setAttribute('tabindex', '-1');
-    document.body.focus();
-    if (els.video) els.video.setAttribute('tabindex', '-1');
-    setProviders(Storage.seedBuiltins(ENDPOINTS.builtins));
+        // Global error reporter: shows any uncaught error on the TV screen.
+        window.onerror = (msg, url, line, col, err) => {
+            debug('JS ERROR: ' + msg + ' @' + line + ':' + col + ' ' + (err && err.stack ? err.stack : ''));
+            return false;
+        };
+        window.addEventListener('unhandledrejection', (e) => {
+            debug('UNHANDLED PROMISE: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+        });
 
-    Player.init(els.video, {
-        onReady: () => {},
-        onError: (msg) => toast('\u26a0 ' + msg, 4000),
-        onCompleted: () => toast('Stream ended'),
-    });
+        const keyFails = registerTvKeys();
+        debug('TV keys registered; failed: ' + (keyFails.length ? keyFails.join(', ') : 'none'));
 
-    let backCount = 0;
-    document.addEventListener('keydown', (e) => {
-        const code = e.keyCode;
+        // Grab focus so remote keys reach our handler.
+        document.body.setAttribute('tabindex', '-1');
+        document.body.focus();
+        if (els.video) els.video.setAttribute('tabindex', '-1');
 
-        // let text inputs handle their own keys (TV keyboard)
-        if (document.activeElement && document.activeElement.tagName === 'INPUT') {
-            if (isBack(code)) { document.activeElement.blur(); e.preventDefault(); }
-            return;
-        }
+        setProviders(Storage.seedBuiltins(ENDPOINTS.builtins));
+        debug('Providers: ' + App.providers.map(p => p.name).join(', '));
 
-        // digits work in PLAY mode
-        if (App.mode === 'PLAY' && (KEYS.NUM(code) || KEYS.NUM_KP(code))) {
-            onDigit(String(code >= 96 ? code - 96 : code - 48));
-            e.preventDefault();
-            return;
-        }
+        Player.init(els.video, {
+            onReady: () => {},
+            onError: (msg) => { toast('\u26a0 ' + msg, 4000); debug('PLAYER: ' + msg); },
+            onCompleted: () => toast('Stream ended'),
+        });
 
-        if (isBack(code)) {
-            const handled = handleKey(code);
-            if (!handled) {
-                backCount++;
-                toast(backCount === 1 ? 'Press Back again to exit' : 'Exiting\u2026', 2000);
-                if (backCount >= 2) {
-                    Player.stop();
-                    if (typeof tizen !== 'undefined') tizen.application.getCurrentApplication().exit();
-                    return;
-                }
+        let backCount = 0;
+        document.addEventListener('keydown', (e) => {
+            const code = e.keyCode;
+            debug('KEYDOWN code=' + code + ' key=' + (e.key || '?'));
+
+            // let text inputs handle their own keys (TV keyboard)
+            if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                if (isBack(code)) { document.activeElement.blur(); e.preventDefault(); }
+                return;
             }
-            backCount = 0;
-        } else {
-            backCount = 0;
-            handleKey(code);
-        }
-        e.preventDefault();
-    }, true);
 
-    // initial screen
-    if (!App.providers.length) {
-        openSettings();
-    } else {
-        App.mode = 'BROWSE';
-        App.col = 'providers';
-        els.sidebar.classList.remove('hidden');
-        renderProviders();
-        loadProvider(App.providers[App.pIdx] || App.providers[0]);
+            // digits work in PLAY mode
+            if (App.mode === 'PLAY' && (KEYS.NUM(code) || KEYS.NUM_KP(code))) {
+                onDigit(String(code >= 96 ? code - 96 : code - 48));
+                e.preventDefault();
+                return;
+            }
+
+            if (isBack(code)) {
+                const handled = handleKey(code);
+                if (!handled) {
+                    backCount++;
+                    toast(backCount === 1 ? 'Press Back again to exit' : 'Exiting\u2026', 2000);
+                    if (backCount >= 2) {
+                        Player.stop();
+                        if (typeof tizen !== 'undefined') tizen.application.getCurrentApplication().exit();
+                        return;
+                    }
+                }
+                backCount = 0;
+            } else {
+                backCount = 0;
+                handleKey(code);
+            }
+            e.preventDefault();
+        }, true);
+
+        // initial screen
+        if (!App.providers.length) {
+            openSettings();
+        } else {
+            App.mode = 'BROWSE';
+            App.col = 'providers';
+            els.sidebar.classList.remove('hidden');
+            renderProviders();
+            loadProvider(App.providers[App.pIdx] || App.providers[0]);
+        }
+        debug('Boot complete. mode=' + App.mode);
+    } catch (err) {
+        debug('BOOT FAILED: ' + (err && err.message ? err.message : err) + '\n' + (err && err.stack ? err.stack : ''));
+        throw err;
     }
 }
 

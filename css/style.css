@@ -224,6 +224,24 @@ html, body {
 }
 #hints.sidebar-open, #settings:not(.hidden) ~ #hints { opacity: .2; }
 
+/* Debug / error panel */
+#debug {
+    position: absolute;
+    top: 20px; left: 20px; right: 20px;
+    max-height: 40%;
+    overflow-y: auto;
+    padding: 18px 24px;
+    background: rgba(180, 20, 20, 0.92);
+    color: #fff;
+    font-family: monospace;
+    font-size: 18px;
+    line-height: 1.4;
+    border-radius: 6px;
+    z-index: 100;
+    white-space: pre-wrap;
+}
+#debug.hidden { display: none; }
+
 /* number-entry bubble */
 #numbox {
     position: absolute;
