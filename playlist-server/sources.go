@@ -17,13 +17,14 @@ import (
 
 // Source is one upstream playlist (env-configured or runtime-added).
 type Source struct {
-	ID       string     `json:"id"`
-	Name     string     `json:"name"`
-	URL      string     `json:"url"`
-	Builtin  bool       `json:"builtin"`
-	Channels []Channel  `json:"-"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	URL       string     `json:"url"`
+	EPGURL    string     `json:"epgUrl,omitempty"`
+	Builtin   bool       `json:"builtin"`
+	Channels  []Channel  `json:"-"`
 	FetchedAt time.Time `json:"-"`
-	LastErr  string     `json:"-"`
+	LastErr   string     `json:"-"`
 }
 
 // SourceStore owns the source list, its cache and persistence.
@@ -32,10 +33,6 @@ type SourceStore struct {
 	cfg     Config
 	sources []*Source
 	idSeq   int
-	epg     struct {
-		body []byte
-		at   time.Time
-	}
 }
 
 func NewSourceStore(cfg Config) *SourceStore {
@@ -71,7 +68,7 @@ func (s *SourceStore) genID() string {
 
 var httpPrefix = regexp.MustCompile(`(?i)^https?://`)
 
-type envSource struct{ name, url string }
+type envSource struct{ name, url, epg string }
 
 func parseEnvSources(raw string) []*Source {
 	raw = strings.TrimSpace(raw)
@@ -83,6 +80,7 @@ func parseEnvSources(raw string) []*Source {
 		var arr []struct {
 			Name string `json:"name"`
 			URL  string `json:"url"`
+			EPG  string `json:"epg"`
 		}
 		if err := json.Unmarshal([]byte(raw), &arr); err != nil {
 			log.Printf("PLAYLISTS JSON parse failed: %v", err)
@@ -96,7 +94,7 @@ func parseEnvSources(raw string) []*Source {
 			if name == "" {
 				name = fmt.Sprintf("Source %d", i+1)
 			}
-			items = append(items, envSource{name, a.URL})
+			items = append(items, envSource{name, a.URL, a.EPG})
 		}
 	} else {
 		for i, part := range strings.Split(raw, ",") {
@@ -104,18 +102,20 @@ func parseEnvSources(raw string) []*Source {
 			if part == "" {
 				continue
 			}
-			name, u := autoName(i+1), part
-			if sep := strings.Index(part, "|"); sep > 0 {
-				name, u = strings.TrimSpace(part[:sep]), strings.TrimSpace(part[sep+1:])
-			} else if eq := strings.LastIndex(part, "="); eq > 0 && httpPrefix.MatchString(part[eq+1:]) {
-				name, u = strings.TrimSpace(part[:eq]), strings.TrimSpace(part[eq+1:])
+			fields := strings.Split(part, "|")
+			name, u, epg := autoName(i+1), part, ""
+			if len(fields) >= 2 {
+				name, u = strings.TrimSpace(fields[0]), strings.TrimSpace(fields[1])
 			}
-			items = append(items, envSource{name, u})
+			if len(fields) >= 3 {
+				epg = strings.TrimSpace(fields[2])
+			}
+			items = append(items, envSource{name, u, epg})
 		}
 	}
 	out := make([]*Source, 0, len(items))
 	for _, it := range items {
-		out = append(out, &Source{Name: it.name, URL: it.url})
+		out = append(out, &Source{Name: it.name, URL: it.url, EPGURL: it.epg})
 	}
 	return out
 }
@@ -133,6 +133,7 @@ func loadRuntimeSources(file string) []*Source {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 		URL  string `json:"url"`
+		EPG  string `json:"epgUrl"`
 	}
 	if json.Unmarshal(data, &arr) != nil {
 		return nil
@@ -146,7 +147,7 @@ func loadRuntimeSources(file string) []*Source {
 		if id == "" {
 			id = fmt.Sprintf("sr%d", time.Now().UnixNano())
 		}
-		out = append(out, &Source{ID: id, Name: orDefault(a.Name, "Source"), URL: a.URL})
+		out = append(out, &Source{ID: id, Name: orDefault(a.Name, "Source"), URL: a.URL, EPGURL: a.EPG})
 	}
 	return out
 }
@@ -156,11 +157,12 @@ func (s *SourceStore) persistRuntime() {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 		URL  string `json:"url"`
+		EPG  string `json:"epgUrl"`
 	}
 	var keep []persisted
 	for _, src := range s.sources {
 		if !src.Builtin {
-			keep = append(keep, persisted{src.ID, src.Name, src.URL})
+			keep = append(keep, persisted{src.ID, src.Name, src.URL, src.EPGURL})
 		}
 	}
 	data, _ := json.MarshalIndent(keep, "", "  ")
@@ -274,7 +276,7 @@ func (s *SourceStore) Channels() []ChannelOut {
 }
 
 // AddSource registers a runtime source, persists and fetches it now.
-func (s *SourceStore) AddSource(name, u string) (*Source, error) {
+func (s *SourceStore) AddSource(name, u, epg string) (*Source, error) {
 	if !httpPrefix.MatchString(u) {
 		return nil, fmt.Errorf("url must be a valid http(s) URL")
 	}
@@ -290,7 +292,7 @@ func (s *SourceStore) AddSource(name, u string) (*Source, error) {
 			return nil, fmt.Errorf("duplicate:%s", ex.ID)
 		}
 	}
-	src := &Source{ID: s.genID(), Name: name, URL: u}
+	src := &Source{ID: s.genID(), Name: name, URL: u, EPGURL: epg}
 	s.sources = append(s.sources, src)
 	s.persistRuntime()
 	s.mu.Unlock()
@@ -315,38 +317,47 @@ func (s *SourceStore) RemoveSource(id string) (*Source, error) {
 	return nil, fmt.Errorf("notfound")
 }
 
-// ---------------- EPG passthrough ----------------
+// ---------------- EPG fetch ----------------
 
-func (s *SourceStore) GetEPG() ([]byte, bool) {
-	if s.cfg.EPGURL == "" {
+func (s *SourceStore) fetchEpgBody(url string) []byte {
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", s.cfg.UserAgent)
+	res, err := client.Do(req)
+	if err != nil {
+		log.Printf("EPG fetch failed: %v", err)
+		return nil
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 400 {
+		log.Printf("EPG fetch failed: HTTP %d", res.StatusCode)
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(res.Body, 128<<20))
+	if err != nil {
+		log.Printf("EPG fetch failed: %v", err)
+		return nil
+	}
+	return body
+}
+
+// GetEPG returns EPG XML. id="" means the global EPG_URL; otherwise per-source.
+func (s *SourceStore) GetEPG(id string) ([]byte, bool) {
+	var url string
+	if id == "" {
+		url = s.cfg.EPGURL
+	} else {
+		s.mu.Lock()
+		for _, src := range s.sources {
+			if src.ID == id {
+				url = src.EPGURL
+				break
+			}
+		}
+		s.mu.Unlock()
+	}
+	if url == "" {
 		return nil, false
 	}
-	s.mu.Lock()
-	stale := time.Since(s.epg.at) > s.cfg.TTL
-	body := s.epg.body
-	s.mu.Unlock()
-	if stale {
-		client := &http.Client{Timeout: 30 * time.Second}
-		req, _ := http.NewRequest("GET", s.cfg.EPGURL, nil)
-		req.Header.Set("User-Agent", s.cfg.UserAgent)
-		res, err := client.Do(req)
-		if err == nil {
-			defer res.Body.Close()
-			if res.StatusCode >= 200 && res.StatusCode < 400 {
-				body, err = io.ReadAll(io.LimitReader(res.Body, 128<<20))
-				if err == nil {
-					s.mu.Lock()
-					s.epg.body, s.epg.at = body, time.Now()
-					s.mu.Unlock()
-				} else {
-					body = s.epg.body
-				}
-			} else {
-				log.Printf("EPG fetch failed: HTTP %d", res.StatusCode)
-			}
-		} else {
-			log.Printf("EPG fetch failed: %v", err)
-		}
-	}
-	return body, true
+	return s.fetchEpgBody(url), true
 }

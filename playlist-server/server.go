@@ -21,6 +21,7 @@ type providerStatus struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	URL       string `json:"url"`
+	EPG       string `json:"epg,omitempty"`
 	Builtin   bool   `json:"builtin"`
 	Channels  int    `json:"channels"`
 	LastError string `json:"lastError"`
@@ -60,9 +61,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.Marshal(map[string]any{"channels": channels})
 		send(http.StatusOK, "application/json; charset=utf-8", string(b))
 	case full == "/epg.xml" || full == "/epg":
-		body, ok := s.store.GetEPG()
+		body, ok := s.store.GetEPG("")
 		if !ok {
-			send(http.StatusServiceUnavailable, "text/plain", "EPG disabled: set EPG_URL\n")
+			send(http.StatusServiceUnavailable, "text/plain", "EPG disabled: set EPG_URL or per-source epg\n")
+			return
+		}
+		if body == nil {
+			send(http.StatusBadGateway, "text/plain", "EPG upstream unavailable\n")
+			return
+		}
+		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=60")
+		w.WriteHeader(http.StatusOK)
+		w.Write(body)
+	case strings.HasPrefix(full, "/epg/") && strings.HasSuffix(full, ".xml"):
+		id := strings.TrimSuffix(strings.TrimPrefix(full, "/epg/"), ".xml")
+		body, ok := s.store.GetEPG(id)
+		if !ok {
+			send(http.StatusNotFound, "text/plain", "Source has no EPG URL\n")
 			return
 		}
 		if body == nil {
@@ -103,8 +119,10 @@ func (s *Server) providerStatuses() []providerStatus {
 	var out []providerStatus
 	for _, src := range s.store.All() {
 		st := providerStatus{
-			ID: src.ID, Name: src.Name, URL: src.URL,
-			Builtin: src.Builtin, Channels: len(src.Channels),
+			ID: src.ID, Name: src.Name, URL: src.URL, Builtin: src.Builtin, Channels: len(src.Channels),
+		}
+		if src.EPGURL != "" {
+			st.EPG = "/epg/" + src.ID + ".xml"
 		}
 		if src.LastErr != "" {
 			st.LastError = src.LastErr
@@ -158,13 +176,14 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
 			URL  string `json:"url"`
+			EPG  string `json:"epg"`
 		}
 		data, _ := io.ReadAll(io.LimitReader(r.Body, 64<<10))
 		if json.Unmarshal(data, &body) != nil {
 			errOut(http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		src, err := s.store.AddSource(body.Name, strings.TrimSpace(body.URL))
+		src, err := s.store.AddSource(body.Name, strings.TrimSpace(body.URL), strings.TrimSpace(body.EPG))
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "duplicate:") {
 				jsonOut(http.StatusConflict, map[string]string{

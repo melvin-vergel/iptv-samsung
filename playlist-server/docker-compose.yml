@@ -21,17 +21,18 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Comma-separated "Name|URL" pairs — M3U or JSON, add as many as you like:
-      PLAYLISTS: ${PLAYLISTS:-Home TV|http://192.168.100.118:8409/iptv/channels.m3u}
-      # XMLTV guide passthrough (served at /epg.xml):
+      # Comma-separated "Name|URL|EPG" pairs — M3U or JSON, add as many as you like.
+      # The optional third field is the XMLTV EPG URL for that playlist:
+      PLAYLISTS: ${PLAYLISTS:-Home TV|http://192.168.100.118:8409/iptv/channels.m3u|http://192.168.100.118:8409/iptv/xmltv.xml}
+      # Global XMLTV guide passthrough (served at /epg.xml), used if a source has no EPG:
       EPG_URL: ${EPG_URL:-http://192.168.100.118:8409/iptv/xmltv.xml}
       # Seconds between upstream refreshes:
       CACHE_TTL: ${CACHE_TTL:-900}
       # Enables runtime add/remove via /admin/sources (Bearer token):
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-***}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-Elgat933.}
       USER_AGENT: ${USER_AGENT:-IPTV-Tizen/1.0}
     volumes:
-      - ./data:/data          # runtime-added playlists persist here
+      - ${CONFIG_PATH:-.}/iptv-server/:/data          # runtime-added playlists persist here
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/server", "-healthcheck"]
