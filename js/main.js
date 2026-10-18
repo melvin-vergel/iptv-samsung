@@ -163,7 +163,10 @@ function renderChannels() {
             if (epg && epg.title) {
                 const epgEl = document.createElement('div');
                 epgEl.className = 'epg-title';
-                epgEl.textContent = epg.title;
+                let t = epg.episode
+                    ? epg.episode + (epg.subtitle ? ' · ' + epg.subtitle : ' · ' + epg.title)
+                    : (epg.subtitle ? epg.subtitle : epg.title);
+                epgEl.textContent = t;
                 body.appendChild(epgEl);
             }
 
@@ -587,6 +590,12 @@ async function boot() {
         });
 
         let backCount = 0;
+        let backResetTimer = null;
+        const bumpBackCount = () => {
+            backCount++;
+            clearTimeout(backResetTimer);
+            backResetTimer = setTimeout(() => { backCount = 0; }, 2500);
+        };
         document.addEventListener('keydown', (e) => {
             const code = e.keyCode;
             debug('KEYDOWN code=' + code + ' key=' + (e.key || '?'));
@@ -605,9 +614,30 @@ async function boot() {
             }
 
             if (isBack(code)) {
+                if (App.mode === 'PLAY') {
+                    // BACK while playing: first press opens the channel list,
+                    // a second press within 2.5s exits the app.
+                    bumpBackCount();
+                    App.mode = 'BROWSE';
+                    App.col = 'channels';
+                    els.sidebar.classList.remove('hidden');
+                    flashHints();
+                    renderProviders();
+                    renderChannels();
+                    if (backCount >= 2) {
+                        hideSpinner();
+                        toast('Exiting\u2026', 2000);
+                        Player.stop();
+                        if (typeof tizen !== 'undefined') tizen.application.getCurrentApplication().exit();
+                        return;
+                    }
+                    toast('Back again to exit', 1600);
+                    e.preventDefault();
+                    return;
+                }
                 const handled = handleKey(code);
                 if (!handled) {
-                    backCount++;
+                    bumpBackCount();
                     toast(backCount === 1 ? 'Press Back again to exit' : 'Exiting\u2026', 2000);
                     if (backCount >= 2) {
                         hideSpinner();
