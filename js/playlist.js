@@ -16,6 +16,7 @@ function parseExtInf(line) {
         name,
         logo: attr('tvg-logo'),
         group: attr('group-title') || 'Uncategorized',
+        tvgId: attr('tvg-id'),
     };
 }
 
@@ -31,6 +32,7 @@ function parseJsonChannels(json) {
             url: c.url || c.streamUrl || c.link,
             group: c.group || c.group_title || c.category || 'Uncategorized',
             logo: c.logo || c.tvg_logo || '',
+            tvgId: c.tvg_id || c.tvgId || c.id || '',
         }));
 }
 
@@ -64,6 +66,7 @@ function parsePlaylist(text) {
                 url: line,
                 group: (meta && meta.group) || 'Uncategorized',
                 logo: (meta && meta.logo) || '',
+                tvgId: (meta && meta.tvgId) || '',
             });
             meta = null;
         }
