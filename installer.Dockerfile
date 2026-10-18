@@ -16,6 +16,7 @@ RUN \
         curl \
         default-jre \
         expect \
+        git \
         sudo \
         tini && \
     rm -rf \

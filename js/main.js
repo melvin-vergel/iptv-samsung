@@ -396,9 +396,28 @@ function moveChannel(delta) {
 }
 
 /* ---------------- boot ---------------- */
+function registerTvKeys() {
+    if (typeof tizen === 'undefined' || !tizen.tvinputdevice) return;
+    const keys = [
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+        'Enter', 'Back',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        'ChannelUp', 'ChannelDown'
+    ];
+    keys.forEach(k => {
+        try { tizen.tvinputdevice.registerKey(k); } catch (e) {}
+    });
+}
+
 function boot() {
     cacheEls();
+    registerTvKeys();
 
+    // Grab focus so the TV remote keys reach our keydown handler instead of
+    // the browser/OS default handlers.
+    document.body.setAttribute('tabindex', '-1');
+    document.body.focus();
+    if (els.video) els.video.setAttribute('tabindex', '-1');
     setProviders(Storage.seedBuiltins(ENDPOINTS.builtins));
 
     Player.init(els.video, {
