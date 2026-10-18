@@ -33,6 +33,7 @@ const App = {
     numBuffer: '',
     numTimer: null,
     osdTimer: null,
+    hintsTimer: null,
 };
 
 /* ---------------- DOM ---------------- */
@@ -42,7 +43,7 @@ function cacheEls() {
     ['video', 'osd', 'osd-channel', 'osd-provider', 'sidebar', 'providers-list',
      'channels-list', 'channels-title', 'btn-settings', 'settings',
      'provider-manager', 'new-name', 'new-url', 'btn-add', 'toast', 'debug',
-     'spinner'].forEach(id => els[id] = $(id));
+     'spinner', 'hints'].forEach(id => els[id] = $(id));
     const num = document.createElement('div');
     num.id = 'numbox';
     num.className = 'hidden';
@@ -78,6 +79,18 @@ function showSpinner() {
 }
 function hideSpinner() {
     if (els.spinner) els.spinner.classList.add('hidden');
+}
+
+/* Key legend: flash for a few seconds, never permanently on screen. */
+function flashHints() {
+    if (!els.hints) return;
+    els.hints.classList.remove('hidden');
+    clearTimeout(App.hintsTimer);
+    App.hintsTimer = setTimeout(hideHints, 5000);
+}
+function hideHints() {
+    clearTimeout(App.hintsTimer);
+    if (els.hints) els.hints.classList.add('hidden');
 }
 
 /* ---------------- rendering ---------------- */
@@ -256,6 +269,7 @@ function playChannelRow(i) {
     const ch = row.ch;
     App.mode = 'PLAY';
     els.sidebar.classList.add('hidden');
+    hideHints();
     showOSD(ch, App.activeProvider());
     showSpinner();
     Player.play(ch.url);
@@ -268,6 +282,7 @@ function stepChannel(delta) {
     const ch = App.flatChannels[next];
     App.mode = 'PLAY';
     els.sidebar.classList.add('hidden');
+    hideHints();
     showOSD(ch, App.activeProvider());
     showSpinner();
     Player.play(ch.url);
@@ -287,6 +302,7 @@ function onDigit(d) {
         if (ch) {
             App.mode = 'PLAY';
             els.sidebar.classList.add('hidden');
+            hideHints();
             showOSD(ch, App.activeProvider());
             showSpinner();
             Player.play(ch.url);
@@ -300,6 +316,7 @@ function onDigit(d) {
 function openSettings() {
     App.mode = 'SETTINGS';
     App.sIdx = 0;
+    hideHints();
     els.settings.classList.remove('hidden');
     renderSettings();
 }
@@ -310,12 +327,14 @@ function closeSettings() {
         App.mode = 'BROWSE';
         App.col = 'providers';
         els.sidebar.classList.remove('hidden');
+        flashHints();
         renderProviders();
         renderChannels();
     } else if (App.providers.length) {
         App.mode = 'BROWSE';
         App.col = 'providers';
         els.sidebar.classList.remove('hidden');
+        flashHints();
         loadProvider(App.providers[0]);
     } else {
         openSettings();
@@ -355,6 +374,7 @@ function handleKey(code) {
             if (App.col === 'providers') { /* fallthrough: exit */ }
             App.mode = 'PLAY';
             els.sidebar.classList.add('hidden');
+            hideHints();
             renderProviders();
             return true;
         }
@@ -410,6 +430,7 @@ function handleKey(code) {
         App.col = 'channels';
         els.sidebar.classList.remove('hidden');
         if (!App.flatChannels.length && App.activeProvider()) loadProvider(App.activeProvider());
+        flashHints();
         renderProviders(); renderChannels();
         return true;
     }
@@ -545,6 +566,7 @@ async function boot() {
 
         Player.init(els.video, {
             onReady: () => hideSpinner(),
+            onBuffering: (show) => { if (show) showSpinner(); else hideSpinner(); },
             // Fatal: playback couldn't start. User needs to know.
             onError: (msg) => { hideSpinner(); toast('\u26a0 ' + msg, 4000); debug('PLAYER: ' + msg, true); },
             // Runtime decoder hiccups — logged, not shown (often benign).
@@ -609,6 +631,7 @@ async function boot() {
             App.mode = 'BROWSE';
             App.col = 'providers';
             els.sidebar.classList.remove('hidden');
+            flashHints();
             renderProviders();
             loadProvider(App.providers[App.pIdx] || App.providers[0]);
         }

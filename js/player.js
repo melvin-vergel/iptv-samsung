@@ -10,6 +10,8 @@ const Player = (() => {
     let currentUrl = null;
     let callbacks = { onReady: null, onError: null, onCompleted: null };
     let switchToken = 0;
+    let bufTimer = null;
+    let eventBuffering = false; // old API reports buffering via setListener
     const displayW = window.innerWidth || 1920;
     const displayH = window.innerHeight || 1080;
 
@@ -33,6 +35,7 @@ const Player = (() => {
 
     function teardown() {
         if (!AV) return Promise.resolve();
+        stopBufferWatch();
         return new Promise((resolve) => {
             try {
                 if (isBusyState()) {
@@ -50,6 +53,35 @@ const Player = (() => {
             if (typeof AV.setMuted === 'function') AV.setMuted(false);
             else if (typeof AV.setVolume === 'function') AV.setVolume(100);
         } catch (e) {}
+    }
+
+    /* Buffering feedback: the old API reports it via the onbuffering listener;
+       the new API has no documented equivalent on every firmware, so poll the
+       player state. Both funnel into callbacks.onBuffering(show). */
+    function reportBuffering(show) {
+        if (callbacks.onBuffering) callbacks.onBuffering(show);
+    }
+
+    function isBufState() {
+        try {
+            const st = AV.getPlayerState();
+            return (AV.STATE_BUFFERING !== undefined && st === AV.STATE_BUFFERING) ||
+                   String(st).indexOf('BUFFER') >= 0;
+        } catch (e) { return false; }
+    }
+
+    function startBufferWatch() {
+        if (bufTimer || eventBuffering) return;
+        reportBuffering(true);
+        bufTimer = setInterval(() => {
+            reportBuffering(isBufState());
+        }, 400);
+    }
+
+    function stopBufferWatch() {
+        clearInterval(bufTimer);
+        bufTimer = null;
+        reportBuffering(false);
     }
 
     function prepareNew(url) {
@@ -70,6 +102,7 @@ const Player = (() => {
                                 return;
                             }
                             currentUrl = url;
+                            startBufferWatch();
                             resolve();
                         },
                         (err) => {
@@ -103,6 +136,7 @@ const Player = (() => {
                                 return;
                             }
                             currentUrl = url;
+                            startBufferWatch();
                             resolve();
                         },
                         (err) => {
@@ -127,10 +161,14 @@ const Player = (() => {
             }
             if (isOldApi) {
                 if (typeof AV.setListener === 'function') {
+                    eventBuffering = true; // firmware reports onbuffering events
                     AV.setListener({
                         onerror: (error) => {
                             console.error('AVPlay error', error);
                             (callbacks.onRuntimeError || callbacks.onError || (() => {}))('Player error (' + error + ')');
+                        },
+                        onbuffering: (percent) => {
+                            reportBuffering(percent < 100);
                         },
                         onstreamcompleted: () => {
                             if (callbacks.onCompleted) callbacks.onCompleted();
