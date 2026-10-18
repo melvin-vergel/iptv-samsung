@@ -219,8 +219,8 @@ function loadProvider(p) {
             renderProviders();
             renderChannels();
             toast(channels.length + ' channels loaded');
-            if (App.epgUrl) {
-                EPG.fetch(App.epgUrl).then(() => {
+            if (App.epgUrls && App.epgUrls.length) {
+                EPG.fetch(App.epgUrls).then(() => {
                     renderChannels();
                 }).catch(err => debug('EPG load failed: ' + err.message));
             }
@@ -461,9 +461,15 @@ function discoverEndpoints(baseUrl) {
                     const data = JSON.parse(xhr.responseText);
                     const ep = data.endpoints || {};
                     const playlist = ep.playlist ? baseUrl.replace(/\/$/, '') + ep.playlist : null;
-                    const epg = ep.epg ? baseUrl.replace(/\/$/, '') + ep.epg : null;
+                    const globalEpg = ep.epg ? baseUrl.replace(/\/$/, '') + ep.epg : null;
+                    const providers = data.providers || [];
+                    const epgUrls = [];
+                    if (globalEpg) epgUrls.push(globalEpg);
+                    providers.forEach(p => {
+                        if (p.epg) epgUrls.push(baseUrl.replace(/\/$/, '') + p.epg);
+                    });
                     if (!playlist) { reject(new Error('Server did not return playlist endpoint')); return; }
-                    resolve({ playlistUrl: playlist, epgUrl: epg });
+                    resolve({ playlistUrl: playlist, epgUrls: epgUrls });
                 } catch (e) {
                     reject(new Error('Bad discovery JSON: ' + e.message));
                 }
@@ -502,8 +508,8 @@ async function boot() {
         try {
             discovered = await discoverEndpoints(ENDPOINTS.serverUrl);
             App.playlistUrl = discovered.playlistUrl;
-            App.epgUrl = discovered.epgUrl;
-            debug('Discovered playlist=' + discovered.playlistUrl + ' epg=' + (discovered.epgUrl || 'none'));
+            App.epgUrls = discovered.epgUrls || [];
+            debug('Discovered playlist=' + discovered.playlistUrl + ' epgs=' + (App.epgUrls.join(', ') || 'none'));
         } catch (e) {
             debug('Endpoint discovery failed: ' + e.message);
             // fallback: try any hardcoded builtins we may still have

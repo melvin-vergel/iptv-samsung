@@ -56,22 +56,32 @@ const EPG = (() => {
         return programmes;
     }
 
-    function fetchEpg(url) {
+    function fetchEpg(urls) {
+        if (!urls || (Array.isArray(urls) && urls.length === 0)) {
+            return Promise.reject(new Error('No EPG URL'));
+        }
+        const list = Array.isArray(urls) ? urls : [urls];
+        const now = Date.now();
+        if (cache.urls && cache.urls.length === list.length &&
+            cache.urls.every((u, i) => u === list[i]) &&
+            now - cache.fetchedAt < TTL_MS && cache.programmes.length) {
+            return Promise.resolve(cache.programmes);
+        }
+        return Promise.all(list.map(u => fetchOne(u))).then(results => {
+            const programmes = results.flat();
+            cache = { urls: list, xml: null, programmes, fetchedAt: Date.now() };
+            return programmes;
+        });
+    }
+
+    function fetchOne(url) {
         return new Promise((resolve, reject) => {
-            if (!url) { reject(new Error('No EPG URL')); return; }
-            const now = Date.now();
-            if (cache.url === url && now - cache.fetchedAt < TTL_MS && cache.programmes.length) {
-                resolve(cache.programmes);
-                return;
-            }
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
             xhr.timeout = 30000;
             xhr.onload = () => {
                 if (xhr.status >= 200 && xhr.status < 400) {
-                    const programmes = parseXmltv(xhr.responseText);
-                    cache = { url, xml: xhr.responseText, programmes, fetchedAt: Date.now() };
-                    resolve(programmes);
+                    resolve(parseXmltv(xhr.responseText));
                 } else {
                     reject(new Error('HTTP ' + xhr.status));
                 }
