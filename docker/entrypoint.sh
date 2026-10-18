@@ -37,11 +37,21 @@ mkdir -p /build
 PUID="${PUID:-$(stat --format=%u /cert)}"
 PGID="${PGID:-$(stat --format=%g /cert)}"
 
+echo "launch build with PUID=$PUID PGID=$PGID"
+
 userdel builder 2>/dev/null || true
 groupdel builder 2>/dev/null || true
-groupadd --gid "$PGID" builder
-useradd --uid "$PUID" --gid "$PGID" --home-dir /build --no-create-home --shell /bin/bash builder
+# GID may already exist in the image (e.g. host staff group = 20 on macOS,
+# or GID 0 for a root-owned volume) — reuse it.
+groupadd --gid "$PGID" builder 2>/dev/null || true
+if [[ "$PUID" != "0" ]]; then
+    useradd --uid "$PUID" --gid "$PGID" --home-dir /build --no-create-home --shell /bin/bash builder
+fi
 chown -R "${PUID}:${PGID}" /cert /build
 
-echo "launch build with PUID=$PUID PGID=$PGID"
+# Root-owned volumes (UID 0) can't be assumed by a "builder" user — run
+# the build directly as root in that case.
+if [[ "$PUID" == "0" ]]; then
+    exec tini -- /run.sh
+fi
 exec tini -- sudo -H -E -u builder /run.sh

@@ -1,30 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets"
         xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://localhost/IPTV"
+        id="https://github.com/melvin-vergel/iptv-samsung"
         version="1.0.0"
-        viewmode="fullscreen"
-        build="1">
+        viewmodes="fullscreen">
 
+    <access origin="*" subdomains="true"/>
     <name>IPTV</name>
+    <description>IPTV playlist player for Samsung Tizen TVs.</description>
     <content src="index.html"/>
-    <icon src="icon.png" width="112" height="112"/>
+    <icon src="icon.png"/>
     <author href="http://localhost" email="you@example.com">Melvin</author>
 
     <tizen:application id="IPTVa1b2c3.IPTV"
                       package="IPTVa1b2c3"
-                      required_version="2.3"
-                      maximum_version="8.0"/>
+                      required_version="2.3"/>
+
+    <feature name="http://tizen.org/feature/screen.size.all"/>
 
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
-    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
-
-    <tizen:app-control>
-        <tizen:src name="recruit" reload="true"/>
-        <tizen:target name="recruit" reload="true"/>
-    </tizen:app-control>
 
     <tizen:profile name="tv"/>
 
-    <preference name="backgroundcolor" value="transparent"/>
+    <tizen:setting screen-orientation="landscape" context-menu="disable"
+                   background-support="disable" encryption="disable"
+                   install-location="auto" hwkey-event="enable"/>
 </widget>

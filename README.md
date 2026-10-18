@@ -37,7 +37,11 @@ js/playlist.js    M3U fetch + parse + grouping
 js/player.js      AVPlay wrapper (prepare/play/stop, error handling)
 js/main.js        State machine + remote-key routing + rendering
 icon.png          App icon (replace with your own 112x112)
-install.sh        One-command Docker installer (Option A below)
+install.sh        One-command Docker installer from the repo (Option A below)
+install-tv-samsung  Same flow as the jellyfin installer, but pulls the image
+                    from Docker Hub — run it on your VM/server (Option C)
+installer.Dockerfile  Self-contained installer image (source baked in)
+build-and-push-installer.sh  Mac: rebuild + push that image
 docker/           Installer image: Dockerfile, entrypoint.sh, run.sh
 .env.default      Installer config template (cert + TV IP)
 playlist-server/  Your own channel-list endpoint server (Docker, Node)
@@ -156,6 +160,55 @@ generates/reuses a self-signed author cert → `tizen build-web` +
 - *Could not connect to TV* → TV on, developer mode on, correct IPs, same LAN; `ping <TV_IP>`.
 - *Interrupted Tizen Studio download* → `rm build/tizen-studio.bin` and rerun.
 - *Install fails (certificate mismatch)* → use the original `./cert/*.p12` or uninstall the app from the TV first.
+
+### Option C — run it from your VM/server, exactly like the Jellyfin installer
+
+The installer image (`melvinvergel/iptv-tizen-installer`) has the app source
+baked in, so the VM needs **no repo, no git, no build** — same layout as your
+`jellyfin-tv` folder.
+
+**One time on the VM:**
+
+```bash
+mkdir -p /mnt/config/docker/iptv-tv && cd /mnt/config/docker/iptv-tv
+# grab the script (or copy it over)
+curl -LO https://raw.githubusercontent.com/melvin-vergel/iptv-samsung/main/install-tv-samsung
+chmod +x install-tv-samsung
+
+# reuse your jellyfin settings as-is — same IP, cert paths and password:
+mkdir -p cert build
+cp ../jellyfin-tv/.env .
+cp ../jellyfin-tv/cert/*.p12 cert/ 2>/dev/null || true   # optional: sign with the Jellyfin cert
+./install-tv-samsung
+```
+
+The `docker run` behind it is the same one you use for Jellyfin:
+
+```bash
+docker run --rm -it \
+    --env-file .env \
+    -e PUID=$(id -u) \
+    -e PGID=$(id -g) \
+    -v "$(pwd)/cert:/cert" \
+    -v "$(pwd)/build:/build" \
+    melvinvergel/iptv-tizen-installer:latest
+```
+
+Notes:
+
+- `.env` keys are the same as the Jellyfin installer's (`CERT_ALIAS`,
+  `CERT_COUNTRY`, `CERT_NAME`, `CERT_PASSWORD`, `TIZEN_TV_IP`), so you can
+  literally `cp ../jellyfin-tv/.env .`. Reusing the Jellyfin certificate
+  (`CERT_NAME=Jellyfin` + `cert/Jellyfin.p12`) works too — apps may share one
+  author cert.
+- Point `build/` at (or symlink) `../jellyfin-tv/build` to skip the ~1.8 GB
+  Tizen Studio download — it reuses the same cached SDK. A separate `build/`
+  just downloads it once, then caches.
+- The TV's Developer Mode must point at the **VM's IP** (it already does if
+  Jellyfin installs work from there).
+- After changing app code: `./build-and-push-installer.sh` on the Mac, then
+  `./install-tv-samsung` again on the VM — the image is tiny; the slow part
+  (SDK) stays cached in `build/`.
 
 ### Option B — Tizen Studio (GUI)
 

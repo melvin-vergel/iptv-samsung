@@ -1,10 +1,14 @@
 # Multi-stage: compile a static Go binary, ship it in a scratch image.
-FROM golang:1.24-alpine AS build
+# The build stage always runs natively (TARGETPLATFORM is passed via buildx)
+# and Go cross-compiles, so no QEMU emulation is needed.
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+ARG TARGETOS TARGETARCH
 RUN apk add --no-cache ca-certificates
 WORKDIR /src
 COPY go.mod ./
 COPY *.go ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /server .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -trimpath -ldflags="-s -w" -o /server .
 
 FROM scratch
 # TLS roots (so future https upstreams work) + CA certs for Alpine-built Go

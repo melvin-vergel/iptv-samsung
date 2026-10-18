@@ -85,26 +85,33 @@ sed -i "s|/build/tizen-studio-data/tools/certificate-generator/certificates/dist
 # the ./build cache and other repo content never end up inside the package.
 #
 echo "Building web package from app source..."
-STAGE_DIR=/build/app-stage
+# Own subdir of the shared /build volume so other apps' build outputs
+# (e.g. Jellyfin reusing the same build dir) can never leak into this wgt.
+BUILD_DIR=/build/iptv
+STAGE_DIR="$BUILD_DIR/app-stage"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
 cp /src/config.xml /src/index.html /src/icon.png "$STAGE_DIR/"
 cp -R /src/css /src/js "$STAGE_DIR/"
 if [[ -d /src/www ]]; then cp -R /src/www "$STAGE_DIR/"; fi
-tizen build-web --output /build/build-web -- "$STAGE_DIR"
+tizen build-web --output "$BUILD_DIR/build-web" -- "$STAGE_DIR"
 
-cat >/build/tizen-package-wrapper.sh <<EOF
+cat >"$BUILD_DIR/tizen-package-wrapper.sh" <<EOF
 #!/usr/bin/expect -f
 set timeout -1
-spawn tizen package --type wgt --output /build/package -- /build/build-web
+spawn tizen package --type wgt --output $BUILD_DIR/package -- $BUILD_DIR/build-web
 expect "Author password: "
 send -- "$CERT_PASSWORD\r"
 expect "Yes: (Y), No: (N) ?"
 send -- "Y\r"
 expect eof
 EOF
-chmod +x /build/tizen-package-wrapper.sh
-/build/tizen-package-wrapper.sh
+chmod +x "$BUILD_DIR/tizen-package-wrapper.sh"
+"$BUILD_DIR/tizen-package-wrapper.sh"
+
+# Debug aid: show the exact manifest that got packaged
+echo "----- config.xml packaged into $WGT_NAME -----"
+cat "$BUILD_DIR/build-web/config.xml"
 
 #
 # Install on the TV over the network (TV must be in Developer Mode with
@@ -125,7 +132,7 @@ if [[ -z "$DEVICE_ID" ]]; then
 fi
 
 echo "Installing ${WGT_NAME} on device ${DEVICE_ID}..."
-tizen install --name "${WGT_NAME}" --target "${DEVICE_ID}" -- /build/package
+tizen install --name "${WGT_NAME}" --target "${DEVICE_ID}" -- "$BUILD_DIR/package"
 
 # Launch the app immediately (non-fatal if this step fails)
 sdb -t "$DEVICE_ID" shell 0 launch "$APP_ID" 2>/dev/null \

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# TV installer — same usage as the jellyfin-tizen-installer's script:
+#
+#   cd /mnt/config/docker/iptv-tv
+#   cp .env from your jellyfin-tv folder (same keys work as-is)
+#   ./install-tv-samsung
+#
+# Needs next to this script: .env  +  ./cert  +  ./build  (created automatically)
+# The app source is baked into the image; nothing else is required on the VM.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+IFS=$'\n\t'
+
+__DIR__="$(cd "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+function error() {
+    echo -e "\033[31merror:\033[m ${*}" >&2
+}
+
+if [[ ! -f "${__DIR__}/.env" ]]; then
+    error "${__DIR__}/.env is missing (copy your jellyfin-tv one or .env.default)"
+    exit 1
+fi
+
+DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-melvinvergel/iptv-tizen-installer:latest}"
+
+mkdir -p "${__DIR__}/cert" "${__DIR__}/build"
+
+docker pull "${DOCKER_IMAGE_NAME}"
+
+# shellcheck disable=SC2086
+docker run --rm -it \
+    --env-file "${__DIR__}/.env" \
+    -e PUID="$(id -u)" \
+    -e PGID="$(id -g)" \
+    -v "${__DIR__}/cert:/cert" \
+    -v "${__DIR__}/build:/build" \
+    "${DOCKER_IMAGE_NAME}"

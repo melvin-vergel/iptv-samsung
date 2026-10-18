@@ -43,7 +43,7 @@ fi
 DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-iptv-tizen-installer}"
 
 echo "Building installer image..."
-docker build --tag "${DOCKER_IMAGE_NAME}:latest" "${__DIR__}/docker"
+docker build --platform linux/amd64 --tag "${DOCKER_IMAGE_NAME}:latest" "${__DIR__}/docker"
 
 mkdir -p "${__DIR__}/cert" "${__DIR__}/build"
 
