@@ -60,7 +60,12 @@ function toast(msg, ms = 3000) {
 function showOSD(channel, provider) {
     els['osd-channel'].textContent = channel.name;
     const cur = EPG.current(channel);
-    const sub = cur ? (cur.title + (cur.subtitle ? ' — ' + cur.subtitle : '')) : '';
+    let sub = '';
+    if (cur) {
+        sub = cur.subtitle || '';
+        if (cur.episode) sub = cur.episode + (sub ? ' · ' + sub : '');
+        sub = cur.title + (sub ? ' — ' + sub : '');
+    }
     els['osd-provider'].innerHTML = (provider ? provider.name : '') + (sub ? '<br>' + sub : '');
     els.osd.classList.remove('hidden');
     clearTimeout(App.osdTimer);

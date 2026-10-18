@@ -48,12 +48,33 @@ const EPG = (() => {
                     title: titleEl ? titleEl.textContent.trim() : '',
                     desc: descEl ? descEl.textContent.trim() : '',
                     subtitle: subEl ? subEl.textContent.trim() : '',
+                    episode: parseEpisodeNum(p),
                 });
             });
         } catch (e) {
             console.error('EPG parse failed', e);
         }
         return programmes;
+    }
+
+    // Prefer the human-readable "SxxExx" (system="onscreen"); fall back to
+    // xmltv_ns (zero-based "season.episode.part") converted to SxxExx.
+    function parseEpisodeNum(p) {
+        const ons = [...p.querySelectorAll('episode-num')]
+            .find(e => (e.getAttribute('system') || '') === 'onscreen');
+        if (ons) {
+            const m = ons.textContent.trim().match(/^(S\d+E\d+)/i);
+            if (m) return m[1].toUpperCase();
+        }
+        const ns = [...p.querySelectorAll('episode-num')]
+            .find(e => (e.getAttribute('system') || '') === 'xmltv_ns');
+        if (ns) {
+            const parts = ns.textContent.trim().split('.');
+            const season = (parseInt(parts[0], 10) || 0) + 1;
+            const episode = (parseInt(parts[1], 10) || 0) + 1;
+            return 'S' + String(season).padStart(2, '0') + 'E' + String(episode).padStart(2, '0');
+        }
+        return '';
     }
 
     function fetchEpg(urls) {
