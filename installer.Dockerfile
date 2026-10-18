@@ -9,6 +9,11 @@ FROM debian:13-slim AS runtime
 
 LABEL org.opencontainers.image.source=https://github.com/melvin-vergel/iptv-samsung
 
+ARG SERVER_URL=http://192.168.100.118:8080
+RUN mkdir -p /app-config && \
+    printf '%s\n' "const ENDPOINTS = { serverUrl: '${SERVER_URL}' };" \
+    > /app-config/endpoints.js
+
 ENV DEBIAN_FRONTEND=noninteractive
 RUN \
     apt-get update && \

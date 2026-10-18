@@ -32,4 +32,15 @@ else
     rm -rf /tmp/iptv-src
 fi
 
+# Inject the real server URL. Build-time value lives in /app-config; runtime
+# env var SERVER_URL overrides it.
+OVERRIDE_URL="${SERVER_URL:-}"
+if [ -n "$OVERRIDE_URL" ]; then
+    echo "Using runtime SERVER_URL=$OVERRIDE_URL"
+    printf '%s\n' "const ENDPOINTS = { serverUrl: '${OVERRIDE_URL}' };" > /src/js/endpoints.js
+elif [ -f /app-config/endpoints.js ]; then
+    echo "Using build-time SERVER_URL from /app-config/endpoints.js"
+    cp /app-config/endpoints.js /src/js/endpoints.js
+fi
+
 exec /entrypoint.sh

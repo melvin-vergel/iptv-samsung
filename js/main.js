@@ -58,7 +58,9 @@ function toast(msg, ms = 3000) {
 
 function showOSD(channel, provider) {
     els['osd-channel'].textContent = channel.name;
-    els['osd-provider'].textContent = provider ? provider.name : '';
+    const cur = EPG.current(channel);
+    const sub = cur ? (cur.title + (cur.subtitle ? ' — ' + cur.subtitle : '')) : '';
+    els['osd-provider'].innerHTML = (provider ? provider.name : '') + (sub ? '<br>' + sub : '');
     els.osd.classList.remove('hidden');
     clearTimeout(App.osdTimer);
     App.osdTimer = setTimeout(() => els.osd.classList.add('hidden'), 3500);
@@ -103,21 +105,42 @@ function renderChannels() {
             li.className = 'channel-item'
                 + (App.col === 'channels' && App.mode === 'BROWSE' && i === App.cIdx ? ' cursor' : '');
             li.dataset.i = i;
+
             const num = document.createElement('span');
             num.className = 'num';
             num.textContent = row.num;
+            li.appendChild(num);
+
+            const body = document.createElement('div');
+            body.className = 'channel-body';
+
+            const top = document.createElement('div');
+            top.className = 'channel-top';
+
             const name = document.createElement('span');
             name.className = 'name';
             name.textContent = row.ch.name;
-            li.appendChild(num);
+            top.appendChild(name);
+
             if (row.ch.logo) {
                 const img = document.createElement('img');
                 img.className = 'logo';
                 img.src = row.ch.logo;
                 img.onerror = () => img.remove();
-                li.appendChild(img);
+                top.appendChild(img);
             }
-            li.appendChild(name);
+
+            body.appendChild(top);
+
+            const epg = EPG.current(row.ch);
+            if (epg && epg.title) {
+                const epgEl = document.createElement('div');
+                epgEl.className = 'epg-title';
+                epgEl.textContent = epg.title;
+                body.appendChild(epgEl);
+            }
+
+            li.appendChild(body);
         }
         ul.appendChild(li);
     });
@@ -196,6 +219,11 @@ function loadProvider(p) {
             renderProviders();
             renderChannels();
             toast(channels.length + ' channels loaded');
+            if (App.epgUrl) {
+                EPG.fetch(App.epgUrl).then(() => {
+                    renderChannels();
+                }).catch(err => debug('EPG load failed: ' + err.message));
+            }
         })
         .catch(err => {
             toast('Could not load playlist: ' + err.message, 4000);
@@ -421,7 +449,35 @@ function debug(msg) {
     els.debug.appendChild(line);
 }
 
-function boot() {
+function discoverEndpoints(baseUrl) {
+    return new Promise((resolve, reject) => {
+        if (!baseUrl) { reject(new Error('No SERVER_URL configured')); return; }
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', baseUrl.replace(/\/$/, '') + '/', true);
+        xhr.timeout = 15000;
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 400) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    const ep = data.endpoints || {};
+                    const playlist = ep.playlist ? baseUrl.replace(/\/$/, '') + ep.playlist : null;
+                    const epg = ep.epg ? baseUrl.replace(/\/$/, '') + ep.epg : null;
+                    if (!playlist) { reject(new Error('Server did not return playlist endpoint')); return; }
+                    resolve({ playlistUrl: playlist, epgUrl: epg });
+                } catch (e) {
+                    reject(new Error('Bad discovery JSON: ' + e.message));
+                }
+            } else {
+                reject(new Error('Discovery HTTP ' + xhr.status));
+            }
+        };
+        xhr.onerror = () => reject(new Error('Discovery network error'));
+        xhr.ontimeout = () => reject(new Error('Discovery timeout'));
+        xhr.send();
+    });
+}
+
+async function boot() {
     try {
         cacheEls();
 
@@ -442,7 +498,21 @@ function boot() {
         document.body.focus();
         if (els.video) els.video.setAttribute('tabindex', '-1');
 
-        setProviders(Storage.seedBuiltins(ENDPOINTS.builtins));
+        let discovered = null;
+        try {
+            discovered = await discoverEndpoints(ENDPOINTS.serverUrl);
+            App.playlistUrl = discovered.playlistUrl;
+            App.epgUrl = discovered.epgUrl;
+            debug('Discovered playlist=' + discovered.playlistUrl + ' epg=' + (discovered.epgUrl || 'none'));
+        } catch (e) {
+            debug('Endpoint discovery failed: ' + e.message);
+            // fallback: try any hardcoded builtins we may still have
+        }
+
+        const builtins = App.playlistUrl
+            ? [{ id: 'discovered', name: 'Home Server', url: App.playlistUrl }]
+            : (ENDPOINTS.builtins || []);
+        setProviders(Storage.seedBuiltins(builtins));
         debug('Providers: ' + App.providers.map(p => p.name).join(', '));
 
         Player.init(els.video, {
